@@ -1,0 +1,36 @@
+# Ollama tourne sur l'hôte (localhost:11434).
+# Caddy ajoute l'auth par token sur localhost:8080, cloudflared l'expose en HTTPS.
+services:
+  caddy:
+    image: caddy:2
+    network_mode: host
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    network_mode: host
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://localhost:8080
+    depends_on:
+      - caddy
+    profiles: ["public"]
+
+  # Interface de chat Symfony, accessible seulement depuis ce PC (http://localhost:8000)
+  web:
+    image: php:8.5-cli
+    network_mode: host
+    restart: unless-stopped
+    user: "1000:1000"
+    working_dir: /app
+    volumes:
+      - ./web:/app
+    environment:
+      JIN_API_URL: http://localhost:8080
+      JIN_API_TOKEN: ${API_TOKEN}
+      PHP_CLI_SERVER_WORKERS: 4
+    command: php -S 127.0.0.1:8000 -t public
+    depends_on:
+      - caddy

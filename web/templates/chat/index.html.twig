@@ -1,0 +1,33 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Jin Chat{% endblock %}
+
+{% block body %}
+<div class="app" data-send-url="{{ path('chat_send') }}">
+    <header class="topbar">
+        <h1>Jin</h1>
+        <label class="model">
+            <span>Modèle</span>
+            <select id="model" {{ models is empty ? 'disabled' }}>
+                {% for model in models %}
+                    <option value="{{ model }}">{{ model }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <button type="button" id="reset" class="ghost">Nouvelle conversation</button>
+    </header>
+
+    <main id="messages" class="messages">
+        {% if error %}
+            <div class="notice error">Impossible de joindre l'API : {{ error }}</div>
+        {% else %}
+            <div class="notice" id="empty">Choisis un modèle et pose ta question.</div>
+        {% endif %}
+    </main>
+
+    <form id="composer" class="composer">
+        <textarea id="prompt" rows="1" placeholder="Pose ta question… (Entrée pour envoyer, Maj+Entrée pour aller à la ligne)" {{ models is empty ? 'disabled' }}></textarea>
+        <button type="submit" id="send" {{ models is empty ? 'disabled' }}>Envoyer</button>
+    </form>
+</div>
+{% endblock %}

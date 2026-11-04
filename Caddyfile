@@ -1,0 +1,18 @@
+{
+	admin off
+}
+
+:8080 {
+	@authorized header Authorization "Bearer {$API_TOKEN}"
+
+	handle @authorized {
+		reverse_proxy localhost:11434 {
+			# Ollama refuse les Host non locaux
+			header_up Host localhost:11434
+			# streaming des tokens sans buffering
+			flush_interval -1
+		}
+	}
+
+	respond "Unauthorized" 401
+}

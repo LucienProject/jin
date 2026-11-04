@@ -1,0 +1,33 @@
+# Jin — API publique pour les modèles Ollama locaux
+
+Ollama (hôte, :11434) → Caddy (auth Bearer, :8080) → Cloudflare Tunnel (HTTPS public)
+
+## Commandes
+
+```bash
+docker compose up -d                     # proxy local seulement (http://localhost:8080)
+docker compose --profile public up -d    # + tunnel public
+./tunnel-url.sh                          # URL publique (change à chaque redémarrage du tunnel)
+./test.sh [URL] [MODELE]                 # vérifie auth + chat
+docker compose --profile public down     # tout arrêter
+```
+
+## Interface de chat (Symfony, dossier `web/`)
+
+http://localhost:8000 : choix du modèle, conversation avec réponses en streaming (Markdown, réflexion des modèles qui raisonnent).
+Elle passe par Caddy (`localhost:8080`) avec le même token, donc fonctionne même si le tunnel est coupé.
+
+```bash
+docker compose up -d web                                        # démarrer l'interface
+docker run --rm -u 1000:1000 -v $PWD/web:/app -w /app php:8.5-cli php bin/phpunit   # tests
+```
+
+Le token est dans `.env` (`API_TOKEN`). Après l'avoir changé : `docker compose up -d --force-recreate caddy`.
+
+## Utilisation (API compatible OpenAI)
+
+```python
+from openai import OpenAI
+client = OpenAI(base_url="https://xxx.trycloudflare.com/v1", api_key="<API_TOKEN>")
+client.chat.completions.create(model="gemma4:12b", messages=[{"role": "user", "content": "Salut"}])
+```
