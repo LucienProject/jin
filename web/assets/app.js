@@ -1,5 +1,6 @@
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import './theme.js';
 import './styles/app.css';
 
 const app = document.querySelector('.app');
@@ -48,7 +49,7 @@ function setBusy(busy) {
     prompt.disabled = busy;
     modelSelect.disabled = busy;
     resetButton.disabled = busy;
-    if (!busy) prompt.focus();
+    if (!busy && !touchScreen) prompt.focus();
 }
 
 async function send(question) {
@@ -157,8 +158,11 @@ form.addEventListener('submit', (event) => {
     send(question);
 });
 
+// sur écran tactile, Entrée va à la ligne : on envoie avec le bouton
+const touchScreen = window.matchMedia('(pointer: coarse)').matches;
+
 prompt.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && !touchScreen) {
         event.preventDefault();
         form.requestSubmit();
     }
@@ -176,4 +180,4 @@ resetButton.addEventListener('click', () => {
     prompt.focus();
 });
 
-prompt.focus();
+if (!touchScreen) prompt.focus();
