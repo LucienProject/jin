@@ -6,6 +6,7 @@ use App\Dto\ChatRequest;
 use App\Service\JinApiClient;
 use App\Service\JinApiException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
@@ -16,6 +17,8 @@ final class ChatController extends AbstractController
 {
     public function __construct(
         private readonly JinApiClient $api,
+        #[Autowire(env: 'JIN_DEFAULT_MODEL')]
+        private readonly string $defaultModel,
     ) {
     }
 
@@ -25,10 +28,14 @@ final class ChatController extends AbstractController
         try {
             $models = $this->api->listModels();
         } catch (ExceptionInterface $e) {
-            return $this->render('chat/index.html.twig', ['models' => [], 'error' => $e->getMessage()]);
+            return $this->render('chat/index.html.twig', ['models' => [], 'default_model' => null, 'error' => $e->getMessage()]);
         }
 
-        return $this->render('chat/index.html.twig', ['models' => $models, 'error' => null]);
+        return $this->render('chat/index.html.twig', [
+            'models' => $models,
+            'default_model' => \in_array($this->defaultModel, $models, true) ? $this->defaultModel : null,
+            'error' => null,
+        ]);
     }
 
     /**

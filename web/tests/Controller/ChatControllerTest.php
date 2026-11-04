@@ -23,6 +23,19 @@ final class ChatControllerTest extends WebTestCase
         self::assertResponseIsSuccessful();
         self::assertSelectorCount(2, '#model option');
         self::assertSelectorTextSame('#model option:first-child', 'gemma4:12b');
+        self::assertSelectorNotExists('#model option[selected]');
+    }
+
+    public function testIndexPreselectsDefaultModel(): void
+    {
+        $client = $this->createClientWithApi(new JsonMockResponse(['data' => [
+            ['id' => 'phi4:latest'],
+            ['id' => 'qwen3.6:35b-a3b'],
+        ]]));
+
+        $client->request('GET', '/');
+
+        self::assertSelectorTextSame('#model option[selected]', 'qwen3.6:35b-a3b');
     }
 
     public function testIndexShowsErrorWhenApiIsDown(): void
