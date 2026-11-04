@@ -8,6 +8,11 @@ framework:
     #esi: true
     #fragments: true
 
+    # ngrok se connecte depuis la machine : on fait confiance à ses en-têtes X-Forwarded-*
+    # (HTTPS d'origine, IP réelle du visiteur pour la limite de tentatives de connexion)
+    trusted_proxies: '127.0.0.1,::1'
+    trusted_headers: ['x-forwarded-for', 'x-forwarded-proto', 'x-forwarded-host']
+
     http_client:
         scoped_clients:
             jin.client:

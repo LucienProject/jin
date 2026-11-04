@@ -87,6 +87,8 @@ final class ChatControllerTest extends WebTestCase
     private function createClientWithApi(mixed $responses = null): KernelBrowser
     {
         $client = static::createClient();
+        $users = static::getContainer()->get('security.user.provider.concrete.users_in_memory');
+        $client->loginUser($users->loadUserByIdentifier('lucien'));
         static::getContainer()->set('jin.client', new MockHttpClient($responses, 'http://localhost:8080'));
 
         return $client;

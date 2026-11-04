@@ -90,6 +90,11 @@ async function send(question) {
             body: JSON.stringify({ model, messages: history }),
             signal: controller.signal,
         });
+        // session expirée : le pare-feu redirige vers la page de connexion
+        if (response.redirected || (response.ok && !response.headers.get('Content-Type')?.includes('ndjson'))) {
+            window.location.reload();
+            return;
+        }
         if (!response.ok) {
             const problem = await response.json().catch(() => ({}));
             throw new Error(problem.detail || problem.title || `Erreur HTTP ${response.status}`);

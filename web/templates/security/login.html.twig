@@ -1,0 +1,29 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Jin — Connexion{% endblock %}
+
+{% block importmap %}{{ importmap('login') }}{% endblock %}
+
+{% block body %}
+<main class="login">
+    <form method="post" action="{{ path('app_login') }}" class="login-card">
+        <h1>Jin</h1>
+
+        {% if error %}
+            <div class="notice error">{{ error.messageKey|trans(error.messageData, 'security') }}</div>
+        {% endif %}
+
+        <label>
+            <span>Utilisateur</span>
+            <input type="text" name="_username" value="{{ last_username }}" autocomplete="username" required {{ last_username ? '' : 'autofocus' }}>
+        </label>
+        <label>
+            <span>Mot de passe</span>
+            <input type="password" name="_password" autocomplete="current-password" required {{ last_username ? 'autofocus' }}>
+        </label>
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
+
+        <button type="submit">Se connecter</button>
+    </form>
+</main>
+{% endblock %}

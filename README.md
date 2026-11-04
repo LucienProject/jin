@@ -17,7 +17,11 @@ docker compose --profile public down     # tout arrêter
 http://localhost:8000 : choix du modèle, conversation avec réponses en streaming (Markdown, réflexion des modèles qui raisonnent).
 Elle passe par Caddy (`localhost:8080`) avec le même token, donc fonctionne même si le tunnel est coupé.
 
+Protégée par mot de passe (utilisateur `lucien`, 5 essais par minute et par IP). Tourne en mode `prod`.
+
 ```bash
+./set-password.sh                                               # définir / changer le mot de passe
+docker compose --profile ngrok up -d                            # exposer l'interface sur NGROK_DOMAIN (.env)
 docker compose up -d web                                        # démarrer l'interface
 docker run --rm -u 1000:1000 -v $PWD/web:/app -w /app php:8.5-cli php bin/phpunit   # tests
 ```

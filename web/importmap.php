@@ -24,6 +24,7 @@
  */
 return [
     'app' => ['path' => './assets/app.js', 'entrypoint' => true],
+    'login' => ['path' => './assets/login.js', 'entrypoint' => true],
     'marked' => ['version' => '18.1.3'],
     'dompurify' => ['version' => '3.4.17'],
 ];

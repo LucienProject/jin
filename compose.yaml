@@ -5,7 +5,8 @@ services:
     image: caddy:2
     network_mode: host
     restart: unless-stopped
-    env_file: .env
+    environment:
+      API_TOKEN: ${API_TOKEN}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
 
@@ -18,7 +19,8 @@ services:
       - caddy
     profiles: ["public"]
 
-  # Interface de chat Symfony, accessible seulement depuis ce PC (http://localhost:8000)
+  # Interface de chat Symfony protégée par mot de passe (./set-password.sh), sur http://localhost:8000
+  # En mode prod : exposable publiquement (ngrok) sans fuite de traces d'erreur.
   web:
     image: php:8.5-cli
     network_mode: host
@@ -28,9 +30,28 @@ services:
     volumes:
       - ./web:/app
     environment:
+      APP_ENV: prod
+      APP_DEBUG: 0
+      APP_SECRET: ${APP_SECRET:?lancer ./set-password.sh}
       JIN_API_URL: http://localhost:8080
       JIN_API_TOKEN: ${API_TOKEN}
+      JIN_UI_PASSWORD_HASH: ${JIN_UI_PASSWORD_HASH:?lancer ./set-password.sh}
       PHP_CLI_SERVER_WORKERS: 4
-    command: php -S 127.0.0.1:8000 -t public
+    command: >-
+      sh -c "php bin/console cache:clear
+      && php bin/console asset-map:compile
+      && exec php -S 127.0.0.1:8000 -t public"
     depends_on:
       - caddy
+
+  # Expose l'interface web sur le domaine ngrok fixe (NGROK_DOMAIN dans .env)
+  ngrok:
+    image: ngrok/ngrok:latest
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:?à définir dans .env}
+    command: http 8000 --url=${NGROK_DOMAIN:?à définir dans .env} --log=stdout
+    depends_on:
+      - web
+    profiles: ["ngrok"]
