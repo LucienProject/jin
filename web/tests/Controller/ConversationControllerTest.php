@@ -127,6 +127,28 @@ final class ConversationControllerTest extends WebTestCase
         self::assertResponseStatusCodeSame(422);
     }
 
+    public function testRenameKeepsDateAndSurvivesUpdate(): void
+    {
+        $created = $this->json('POST', '/conversations', $this->conversation('Salut', ['Salut', 'Bonjour !']));
+        $url = '/conversations/'.$created['id'];
+
+        $renamed = $this->json('PATCH', "$url/title", ['title' => '  Mon titre ']);
+        self::assertResponseIsSuccessful();
+        self::assertSame('Mon titre', $renamed['title']);
+        self::assertSame($created['updatedAt'], $renamed['updatedAt']);
+
+        // la mise à jour après un nouvel échange envoie le titre calculé : il est ignoré
+        $updated = $this->json('PUT', $url, $this->conversation('Salut', ['Salut', 'Bonjour !', 'Ça va ?', 'Oui.']));
+        self::assertSame('Mon titre', $updated['title']);
+        self::assertSame('Mon titre', $this->json('GET', $url)['title']);
+
+        $this->json('PATCH', "$url/title", ['title' => ' ']);
+        self::assertResponseStatusCodeSame(422);
+
+        $this->json('PATCH', '/conversations/0123456789abcdef/title', ['title' => 'X']);
+        self::assertResponseStatusCodeSame(404);
+    }
+
     public function testUpdateDoesNotRecreateDeletedConversation(): void
     {
         $this->json('PUT', '/conversations/0123456789abcdef', $this->conversation('Salut', ['Salut']));

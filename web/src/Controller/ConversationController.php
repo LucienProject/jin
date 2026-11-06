@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Dto\CreateFolderRequest;
 use App\Dto\MoveConversationRequest;
+use App\Dto\RenameConversationRequest;
 use App\Dto\RenameFolderRequest;
 use App\Dto\SaveConversationRequest;
 use App\Service\ConversationStore;
@@ -58,6 +59,9 @@ final class ConversationController extends AbstractController
         return $this->json($this->store->find($id) ?? throw new NotFoundHttpException('Conversation introuvable.'));
     }
 
+    /**
+     * Met à jour les messages ; le titre et le dossier enregistrés sont conservés.
+     */
     #[Route('/{id}', name: 'conversation_update', methods: ['PUT'])]
     public function update(string $id, #[MapRequestPayload] SaveConversationRequest $request): JsonResponse
     {
@@ -76,6 +80,15 @@ final class ConversationController extends AbstractController
     public function move(string $id, #[MapRequestPayload] MoveConversationRequest $request): JsonResponse
     {
         return $this->json($this->store->move($id, $request->folder()) ?? throw new NotFoundHttpException('Conversation introuvable.'));
+    }
+
+    /**
+     * Donne un titre à la conversation : {"title": "…"}. Sa date ne change pas.
+     */
+    #[Route('/{id}/title', name: 'conversation_rename', methods: ['PATCH'])]
+    public function rename(string $id, #[MapRequestPayload] RenameConversationRequest $request): JsonResponse
+    {
+        return $this->json($this->store->rename($id, trim($request->title)) ?? throw new NotFoundHttpException('Conversation introuvable.'));
     }
 
     #[Route('/{id}', name: 'conversation_delete', methods: ['DELETE'])]

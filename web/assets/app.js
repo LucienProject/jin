@@ -295,6 +295,10 @@ function conversationItem(conversation) {
     open.append(title, meta);
     open.addEventListener('click', () => load(conversation.id));
 
+    const rename = iconButton('rename', `Renommer « ${conversation.title} »`,
+        '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
+        () => renameConversation(conversation));
+    rename.title = 'Renommer';
     const move = iconButton('move', `Classer « ${conversation.title} »`, FOLDER_ICON, () => openMoveDialog(conversation));
     move.title = 'Classer dans un dossier';
     const remove = iconButton('delete', `Supprimer « ${conversation.title} »`,
@@ -302,7 +306,7 @@ function conversationItem(conversation) {
         () => removeConversation(conversation));
     remove.title = 'Supprimer';
 
-    item.append(open, move, remove);
+    item.append(open, rename, move, remove);
     item.querySelectorAll('button').forEach((button) => { button.disabled = controller !== null; });
     return item;
 }
@@ -423,6 +427,24 @@ async function moveConversation(conversation, folder) {
         renderList();
     } catch (e) {
         showSidebarError(`Classement impossible : ${e.message}`);
+    }
+}
+
+async function renameConversation(conversation) {
+    const title = window.prompt('Titre de la conversation :', conversation.title)?.trim().slice(0, 200);
+    if (!title || title === conversation.title) return;
+    try {
+        const summary = await api(`${conversationsUrl}/${conversation.id}/title`, { method: 'PATCH', body: JSON.stringify({ title }) });
+        if (summary) {
+            conversations = conversations.map((c) => (c.id === summary.id ? summary : c));
+        } else {
+            conversations = conversations.filter((c) => c.id !== conversation.id);
+            if (currentId === conversation.id) currentId = null;
+            showSidebarError('Cette conversation n\'existe plus.');
+        }
+        renderList();
+    } catch (e) {
+        showSidebarError(`Renommage impossible : ${e.message}`);
     }
 }
 

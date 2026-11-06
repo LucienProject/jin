@@ -46,7 +46,7 @@ final class ConversationStore
     }
 
     /**
-     * Crée la conversation si $id est null, sinon la remplace (en gardant son dossier).
+     * Crée la conversation si $id est null, sinon la remplace (en gardant son titre et son dossier).
      *
      * @param list<ChatMessage> $messages
      *
@@ -59,14 +59,30 @@ final class ConversationStore
             throw new \InvalidArgumentException('Identifiant de conversation invalide.');
         }
 
+        $existing = $this->find($id);
+
         return $this->write([
             'id' => $id,
-            'title' => $title,
+            'title' => $existing['title'] ?? $title,
             'model' => $model,
-            'folder' => $this->find($id)['folder'] ?? null,
+            'folder' => $existing['folder'] ?? null,
             'updatedAt' => (new \DateTimeImmutable())->format(\DATE_ATOM),
             'messages' => array_map(static fn (ChatMessage $m): array => ['role' => $m->role, 'content' => $m->content], $messages),
         ]);
+    }
+
+    /**
+     * @return array{id: string, title: string, model: string, folder: ?string, updatedAt: string}|null null si elle n'existe pas
+     */
+    public function rename(string $id, string $title): ?array
+    {
+        $conversation = $this->find($id);
+        if (null === $conversation) {
+            return null;
+        }
+        $conversation['title'] = $title;
+
+        return $this->write($conversation);
     }
 
     /**

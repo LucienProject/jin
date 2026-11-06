@@ -183,11 +183,11 @@ button.conversation:hover:not(:disabled) { background: transparent; }
 .conversation .title { font-size: 14px; }
 .conversation .date { font-size: 12px; color: var(--muted); }
 
-.conversations .move, .conversations .delete { border-color: transparent; color: var(--muted); opacity: 0; flex: none; width: 32px; padding: 0; }
-.conversations .item:hover :is(.move, .delete), .conversations .item.active :is(.move, .delete), .conversations :is(.move, .delete):focus-visible { opacity: 1; }
-.conversations .move:hover:not(:disabled) { color: var(--accent); }
+.item :is(.rename, .move, .delete) { border-color: transparent; color: var(--muted); opacity: 0; flex: none; width: 30px; padding: 0; }
+.item:hover :is(.rename, .move, .delete), .item.active :is(.rename, .move, .delete), .item :is(.rename, .move, .delete):focus-visible { opacity: 1; }
+.item :is(.rename, .move):hover:not(:disabled) { color: var(--accent); }
 .conversations .delete:hover:not(:disabled) { color: var(--danger); }
-@media (hover: none) { .conversations :is(.move, .delete) { opacity: 1; } }
+@media (hover: none) { .item :is(.rename, .move, .delete) { opacity: 1; } }
 
 /* Fenêtre « Classer » */
 
