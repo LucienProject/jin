@@ -70,13 +70,173 @@ body {
     -webkit-text-size-adjust: 100%;
 }
 
+.layout {
+    display: flex;
+    height: 100%;
+    height: 100dvh; /* suit la barre d'adresse et le clavier sur mobile */
+}
+
 .app {
     display: flex;
     flex-direction: column;
+    flex: 1 1 auto;
+    min-width: 0;
     height: 100%;
-    height: 100dvh; /* suit la barre d'adresse et le clavier sur mobile */
     max-width: 900px;
     margin: 0 auto;
+}
+
+/* Conversations enregistrées (colonne de gauche) */
+
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex: 0 0 280px;
+    width: 280px;
+    padding: 12px;
+    padding-top: max(12px, env(safe-area-inset-top));
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    overflow: hidden;
+}
+
+.sidebar-head { display: flex; align-items: center; gap: 4px; min-height: 36px; }
+.sidebar-head h2 { flex: 1; margin: 0 4px; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.sidebar-close { display: none; }
+
+.save { width: 100%; }
+.save.saved:disabled { opacity: 1; background: transparent; color: var(--muted); border-color: var(--border); }
+
+.sidebar .notice.error { margin: 0; font-size: 13px; }
+.sidebar-empty { margin: 4px; font-size: 13px; }
+
+.conversations {
+    list-style: none;
+    margin: 0 -4px;
+    padding: 0 4px;
+    flex: 1;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.folder-empty { padding: 4px 10px; font-size: 13px; font-style: italic; }
+.conversations ul { list-style: none; margin: 0; padding: 0 0 0 12px; display: flex; flex-direction: column; gap: 2px; }
+
+.conversations .item { display: flex; align-items: center; border-radius: 8px; }
+.conversations .item:hover, .conversations .item.active { background: var(--hover); }
+.conversations .item.active { box-shadow: inset 3px 0 0 var(--accent); }
+
+/* dossiers repliables */
+.folder summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 36px;
+    padding: 4px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    list-style: none;
+    user-select: none;
+}
+.folder summary::-webkit-details-marker { display: none; }
+.folder summary::after { content: "›"; margin-left: 4px; color: var(--muted); transition: transform .15s; }
+.folder details[open] > summary::after { transform: rotate(90deg); }
+.folder summary:hover { background: var(--hover); }
+.folder summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.folder summary svg { flex: none; color: var(--muted); }
+.folder-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder .count { order: 1; font-size: 12px; font-weight: 400; color: var(--muted); }
+.folder summary::after { order: 4; }
+.folder summary :is(.rename, .delete) { order: 3; width: 28px; min-height: 28px; height: 28px; padding: 0; border-color: transparent; color: var(--muted); opacity: 0; }
+.folder summary:hover :is(.rename, .delete), .folder summary :is(.rename, .delete):focus-visible { opacity: 1; }
+.folder summary .rename:hover:not(:disabled) { color: var(--accent); }
+.folder summary .delete:hover:not(:disabled) { color: var(--danger); }
+@media (hover: none) { .folder summary :is(.rename, .delete) { opacity: 1; } }
+
+/* glisser-déposer */
+.conversations .item.dragging { opacity: .4; }
+.conversations .item[draggable="true"] { cursor: grab; }
+.folder.drop-target > details > summary { background: var(--user-bg); outline: 2px dashed var(--accent); outline-offset: -2px; }
+.conversations.drop-target { outline: 2px dashed var(--accent); outline-offset: -2px; border-radius: 8px; }
+
+.conversation {
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    background: transparent;
+    color: var(--text);
+    font-weight: 400;
+    text-align: left;
+    padding: 6px 10px;
+}
+button.conversation:hover:not(:disabled) { background: transparent; }
+.conversation .title, .conversation .date { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conversation .title { font-size: 14px; }
+.conversation .date { font-size: 12px; color: var(--muted); }
+
+.conversations .move, .conversations .delete { border-color: transparent; color: var(--muted); opacity: 0; flex: none; width: 32px; padding: 0; }
+.conversations .item:hover :is(.move, .delete), .conversations .item.active :is(.move, .delete), .conversations :is(.move, .delete):focus-visible { opacity: 1; }
+.conversations .move:hover:not(:disabled) { color: var(--accent); }
+.conversations .delete:hover:not(:disabled) { color: var(--danger); }
+@media (hover: none) { .conversations :is(.move, .delete) { opacity: 1; } }
+
+/* Fenêtre « Classer » */
+
+.dialog {
+    width: min(400px, calc(100vw - 32px));
+    padding: 20px;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgb(0 0 0 / .25);
+}
+.dialog::backdrop { background: rgb(0 0 0 / .4); }
+.dialog form { display: flex; flex-direction: column; gap: 14px; }
+.dialog h3 { margin: 0; font-size: 16px; overflow-wrap: anywhere; }
+.dialog .choices { display: flex; flex-direction: column; gap: 4px; max-height: 40vh; overflow-y: auto; }
+.dialog .choice { justify-content: flex-start; border-color: transparent; text-align: left; white-space: normal; }
+.dialog .choice svg { flex: none; color: var(--muted); }
+.dialog .choice.current:disabled { opacity: 1; background: var(--hover); font-weight: 600; }
+.dialog .choice.current::after { content: "✓"; margin-left: auto; color: var(--accent); }
+.new-folder { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+.new-folder input {
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 16px;
+}
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+.menu { display: none; }
+.backdrop { position: fixed; inset: 0; z-index: 10; background: rgb(0 0 0 / .4); }
+
+/* sur écran étroit, la liste devient un tiroir ouvert par le bouton menu */
+@media (max-width: 960px) {
+    .menu { display: inline-flex; }
+    .sidebar {
+        position: fixed;
+        inset: 0 auto 0 0;
+        z-index: 20;
+        width: min(300px, 85vw);
+        transform: translateX(-100%);
+        visibility: hidden;
+        transition: transform .2s ease, visibility .2s;
+        box-shadow: 0 0 24px rgb(0 0 0 / .2);
+    }
+    .sidebar.open { transform: none; visibility: visible; }
+    .sidebar-close { display: inline-flex; }
 }
 
 /* Barre du haut */
@@ -284,7 +444,9 @@ textarea:focus, select:focus, input:focus { outline: 2px solid var(--accent); ou
         padding-top: max(10px, env(safe-area-inset-top));
     }
     /* modèle sur sa propre ligne, pleine largeur */
+    .topbar { grid-template-columns: auto 1fr auto; }
     .model { grid-column: 1 / -1; grid-row: 2; margin-left: 0; }
+    .menu { width: 40px; height: 40px; padding: 0; }
     .model select { flex: 1; max-width: none; min-height: 40px; }
     /* boutons réduits à leur icône */
     .actions .label { display: none; }

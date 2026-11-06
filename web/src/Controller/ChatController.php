@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Dto\ChatRequest;
+use App\Service\ConversationStore;
 use App\Service\JinApiClient;
 use App\Service\JinApiException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -17,6 +18,7 @@ final class ChatController extends AbstractController
 {
     public function __construct(
         private readonly JinApiClient $api,
+        private readonly ConversationStore $conversations,
         #[Autowire(env: 'JIN_DEFAULT_MODEL')]
         private readonly string $defaultModel,
     ) {
@@ -25,15 +27,19 @@ final class ChatController extends AbstractController
     #[Route('/', name: 'chat', methods: ['GET'])]
     public function index(): Response
     {
+        $conversations = $this->conversations->all();
+        $folders = $this->conversations->folders();
         try {
             $models = $this->api->listModels();
         } catch (ExceptionInterface $e) {
-            return $this->render('chat/index.html.twig', ['models' => [], 'default_model' => null, 'error' => $e->getMessage()]);
+            return $this->render('chat/index.html.twig', ['models' => [], 'default_model' => null, 'conversations' => $conversations, 'folders' => $folders, 'error' => $e->getMessage()]);
         }
 
         return $this->render('chat/index.html.twig', [
             'models' => $models,
             'default_model' => \in_array($this->defaultModel, $models, true) ? $this->defaultModel : null,
+            'conversations' => $conversations,
+            'folders' => $folders,
             'error' => null,
         ]);
     }

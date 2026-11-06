@@ -15,6 +15,7 @@ docker compose --profile public down     # tout arrêter
 ## Interface de chat (Symfony, dossier `web/`)
 
 http://localhost:8000 : choix du modèle, conversation avec réponses en streaming (Markdown, réflexion des modèles qui raisonnent).
+Colonne de gauche : conversations enregistrées, mises à jour automatiquement après chaque échange et classables en dossiers (fichiers JSON dans `web/var/share/prod/conversations/`).
 Elle passe par Caddy (`localhost:8080`) avec le même token, donc fonctionne même si le tunnel est coupé.
 
 Protégée par mot de passe (utilisateur `lucien`, 5 essais par minute et par IP). Tourne en mode `prod`.
