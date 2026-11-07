@@ -9,7 +9,7 @@ final readonly class ChatMessage
 {
     /**
      * @param list<Attachment>      $attachments fichiers joints (messages de l'utilisateur), réduits à leur texte
-     * @param list<ImageAttachment> $images      images jointes, pour les modèles qui savent les lire
+     * @param list<ImageAttachment> $images      images jointes (pour les modèles qui savent les lire) ou générées
      */
     public function __construct(
         #[Assert\Choice(choices: ['system', 'user', 'assistant'])]
@@ -52,14 +52,18 @@ final readonly class ChatMessage
         if ('' !== trim($this->content)) {
             $parts[] = $this->content;
         }
-        if (!$withImages) {
+        // seules les images envoyées par l'utilisateur sont montrées ; celles générées sont mentionnées
+        $show = $withImages && 'user' === $this->role;
+        if (!$show) {
             foreach ($this->images as $image) {
-                $parts[] = \sprintf('[image « %s » jointe, que tu ne peux pas voir]', $image->name);
+                $parts[] = 'user' === $this->role
+                    ? \sprintf('[image « %s » jointe, que tu ne peux pas voir]', $image->name)
+                    : \sprintf('[image « %s » générée à partir de la demande précédente]', $image->name);
             }
         }
         $text = implode("\n\n", $parts);
 
-        if (!$withImages || [] === $this->images) {
+        if (!$show || [] === $this->images) {
             return ['role' => $this->role, 'content' => $text];
         }
 

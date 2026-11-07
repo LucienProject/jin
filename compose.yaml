@@ -37,6 +37,7 @@ services:
       JIN_API_TOKEN: ${API_TOKEN}
       JIN_UI_PASSWORD_HASH: ${JIN_UI_PASSWORD_HASH:?lancer ./set-password.sh}
       SEARXNG_URL: http://127.0.0.1:8888
+      IMAGEGEN_URL: http://127.0.0.1:8890
       PHP_CLI_SERVER_WORKERS: 4
     command: >-
       sh -c "php bin/console cache:clear
@@ -60,6 +61,28 @@ services:
     cap_drop: [ALL]
     cap_add: [CHOWN, SETGID, SETUID]
 
+  # Génération d'images (Z-Image-Turbo) pour le bouton 🖼 du chat, sur http://127.0.0.1:8890
+  # Nécessite le NVIDIA Container Toolkit. Premier démarrage : téléchargement du modèle (≈ 20 Go).
+  # Décharge les modèles d'Ollama avant chaque image (la VRAM ne suffit pas pour les deux).
+  imagegen:
+    build: ./imagegen
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      OLLAMA_URL: http://127.0.0.1:11434
+      HF_HOME: /cache
+    volumes:
+      - imagegen-cache:/cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            # GPU 0 : en PCIe x8 (le GPU 1 n'est qu'en x1, trop lent pour les allers-retours RAM ↔ VRAM)
+            - driver: nvidia
+              device_ids: ["0"]
+              capabilities: [gpu]
+    profiles: ["images"]
+
   # Expose l'interface web sur le domaine ngrok fixe (NGROK_DOMAIN dans .env)
   ngrok:
     image: ngrok/ngrok:latest
@@ -71,3 +94,6 @@ services:
     depends_on:
       - web
     profiles: ["ngrok"]
+
+volumes:
+  imagegen-cache:

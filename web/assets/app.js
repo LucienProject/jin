@@ -21,6 +21,8 @@ const conversationsUrl = sidebar.dataset.createUrl;
 const attachButton = document.getElementById('attach');
 const fileInput = document.getElementById('file-input');
 const pendingList = document.getElementById('pending-attachments');
+const imageModeButton = document.getElementById('image-mode');
+const imageFormatSelect = document.getElementById('image-format');
 
 // historique envoyé à chaque requête : l'API ne garde aucune mémoire
 let history = [];
@@ -233,19 +235,7 @@ app.addEventListener('drop', (event) => {
 /** Contenu d'un message de l'utilisateur : images, fichiers joints puis texte. */
 function fillUserBubble(bubble, message) {
     const body = bubble.querySelector('.body');
-    if (message.images?.length) {
-        const gallery = document.createElement('div');
-        gallery.className = 'images';
-        gallery.append(...message.images.map((image) => {
-            const img = document.createElement('img');
-            img.src = image.url;
-            img.alt = image.name;
-            img.title = `${image.name} (cliquer pour agrandir)`;
-            img.addEventListener('click', () => img.classList.toggle('expanded'));
-            return img;
-        }));
-        bubble.insertBefore(gallery, body);
-    }
+    if (message.images?.length) addImages(bubble, message.images, false);
     if (message.attachments?.length) {
         const list = document.createElement('ul');
         list.className = 'attachments';
@@ -254,6 +244,110 @@ function fillUserBubble(bubble, message) {
     }
     body.textContent = message.content;
     body.hidden = !message.content;
+}
+
+// Mode image : la demande part vers le générateur d'images (Z-Image-Turbo) au lieu du modèle de chat
+let imageMode = false;
+const refreshImageMode = () => {
+    imageModeButton.setAttribute('aria-pressed', String(imageMode));
+    imageModeButton.title = imageMode
+        ? 'Mode image : la demande génère une image (cliquer pour revenir à la discussion)'
+        : 'Générer une image (Z-Image-Turbo)';
+    imageFormatSelect.hidden = !imageMode;
+    form.classList.toggle('image-mode-on', imageMode);
+    prompt.placeholder = imageMode ? 'Décris l\'image à générer…' : 'Pose ta question…';
+};
+imageModeButton.addEventListener('click', () => {
+    imageMode = !imageMode;
+    refreshImageMode();
+    if (!touchScreen) prompt.focus();
+});
+
+/** Images d'un message ; celles générées ont un lien de téléchargement. */
+function addImages(bubble, images, downloadable) {
+    const gallery = document.createElement('div');
+    gallery.className = 'images';
+    gallery.append(...images.map((image) => {
+        const figure = document.createElement('figure');
+        const img = document.createElement('img');
+        img.src = image.url;
+        img.alt = image.name;
+        img.title = `${image.name} (cliquer pour agrandir)`;
+        img.addEventListener('click', () => img.classList.toggle('expanded'));
+        figure.append(img);
+        if (downloadable) {
+            const caption = document.createElement('figcaption');
+            const link = document.createElement('a');
+            link.href = image.url;
+            link.download = image.name;
+            link.textContent = 'Télécharger';
+            caption.append(link);
+            figure.append(caption);
+        }
+        return figure;
+    }));
+    bubble.insertBefore(gallery, bubble.querySelector('.body'));
+}
+
+async function generateImage(description) {
+    const message = { role: 'user', content: description };
+    history.push(message);
+    fillUserBubble(addBubble('user', 'Toi'), message);
+
+    const bubble = addBubble('assistant', 'Z-Image-Turbo');
+    const body = bubble.querySelector('.body');
+    const started = Date.now();
+    const tick = () => {
+        body.innerHTML = `<span class="typing">Génération de l'image… ${Math.round((Date.now() - started) / 1000)} s</span>`;
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    let image = null;
+
+    controller = new AbortController();
+    setBusy(true);
+    try {
+        const response = await fetch(app.dataset.imageUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({ prompt: description, format: imageFormatSelect.value }),
+            signal: controller.signal,
+        });
+        if (response.redirected) {
+            window.location.reload();
+            return;
+        }
+        if (!response.ok) {
+            const problem = await response.json().catch(() => ({}));
+            throw new Error(problem.detail || problem.title || `Erreur HTTP ${response.status}`);
+        }
+        image = await response.json();
+        body.remove();
+        addImages(bubble, [{ name: image.name, url: image.url }], true);
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        meta.textContent = `en ${Math.round(image.seconds)} s`;
+        bubble.append(meta);
+    } catch (e) {
+        body.innerHTML = '<em class="muted">(pas d\'image)</em>';
+        if (e.name !== 'AbortError') {
+            const error = document.createElement('div');
+            error.className = 'notice error';
+            error.textContent = e.message;
+            bubble.append(error);
+        }
+    } finally {
+        clearInterval(timer);
+        if (image) {
+            history.push({ role: 'assistant', content: '', images: [{ name: image.name, url: image.url }] });
+        } else {
+            history.pop();
+        }
+        controller = null;
+        setBusy(false);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+        if (image && currentId) updateSaved();
+    }
 }
 
 function addBubble(role, label) {
@@ -275,6 +369,8 @@ function setBusy(busy) {
     sendButton.textContent = busy ? 'Stop' : 'Envoyer';
     sendButton.classList.toggle('stop', busy);
     prompt.disabled = busy;
+    imageModeButton.disabled = busy;
+    imageFormatSelect.disabled = busy;
     modelSelect.disabled = busy;
     resetButton.disabled = busy;
     listEl.querySelectorAll('button').forEach((button) => { button.disabled = busy; });
@@ -442,6 +538,13 @@ form.addEventListener('submit', (event) => {
         return;
     }
     const question = prompt.value.trim();
+    if (imageMode) {
+        if (!question) return;
+        prompt.value = '';
+        autosize();
+        generateImage(question);
+        return;
+    }
     const ready = (kind) => pending.filter((item) => item.status === 'ready' && item.kind === kind).map((item) => item.data);
     const attachments = ready('file');
     const images = ready('image');
@@ -892,9 +995,13 @@ async function load(id) {
         }
         messagesEl.replaceChildren();
         for (const message of history) {
-            const bubble = addBubble(message.role, message.role === 'user' ? 'Toi' : conversation.model);
+            const generated = message.role === 'assistant' && message.images?.length;
+            const bubble = addBubble(message.role, message.role === 'user' ? 'Toi' : (generated ? 'Z-Image-Turbo' : conversation.model));
             if (message.role === 'user') {
                 fillUserBubble(bubble, message);
+            } else if (generated) {
+                addImages(bubble, message.images, true);
+                bubble.querySelector('.body').remove();
             } else {
                 bubble.querySelector('.body').innerHTML = renderMarkdown(message.content);
             }

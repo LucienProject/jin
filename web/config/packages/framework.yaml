@@ -23,6 +23,10 @@ framework:
             searxng.client:
                 base_uri: '%env(SEARXNG_URL)%'
                 timeout: 15
+            imagegen.client:
+                base_uri: '%env(IMAGEGEN_URL)%'
+                # déchargement d'Ollama + génération ; plus long au premier passage
+                timeout: 300
 
 when@test:
     framework:

@@ -204,6 +204,8 @@ final class ChatControllerTest extends WebTestCase
             ['role' => 'user', 'content' => 'Couleur ?', 'images' => [['name' => 'a.png', 'url' => self::IMAGE]]],
             ['role' => 'assistant', 'content' => 'Rouge.'],
             ['role' => 'user', 'content' => '', 'images' => [['name' => 'b.jpg', 'url' => 'data:image/jpeg;base64,AAAA']]],
+            ['role' => 'assistant', 'content' => '', 'images' => [['name' => 'image-7.jpg', 'url' => 'data:image/jpeg;base64,BBBB']]],
+            ['role' => 'user', 'content' => 'Merci'],
         ]]);
 
         self::assertResponseIsSuccessful();
@@ -211,6 +213,8 @@ final class ChatControllerTest extends WebTestCase
             ['role' => 'user', 'content' => [['type' => 'text', 'text' => 'Couleur ?'], ['type' => 'image_url', 'image_url' => ['url' => self::IMAGE]]]],
             ['role' => 'assistant', 'content' => 'Rouge.'],
             ['role' => 'user', 'content' => [['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,AAAA']]]],
+            ['role' => 'assistant', 'content' => '[image « image-7.jpg » générée à partir de la demande précédente]'],
+            ['role' => 'user', 'content' => 'Merci'],
         ], $sent['messages']);
     }
 

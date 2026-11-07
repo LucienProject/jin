@@ -388,9 +388,14 @@ button.stop:hover:not(:disabled) { background: var(--danger); filter: brightness
 .attachment.failed .info { color: var(--danger); white-space: normal; flex: 1 1 auto; }
 .attachment.truncated .info { color: var(--danger); }
 .attachment .thumbnail { flex: none; width: 24px; height: 24px; object-fit: cover; border-radius: 4px; }
-.msg.user .images { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-bottom: 6px; }
-.msg.user .images img { max-height: 160px; max-width: 100%; border-radius: 8px; border: 1px solid var(--border); cursor: zoom-in; }
-.msg.user .images img.expanded { max-height: none; cursor: zoom-out; }
+.msg .images { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.msg.user .images { justify-content: flex-end; }
+.msg .images figure { margin: 0; display: flex; flex-direction: column; gap: 4px; max-width: 100%; }
+.msg .images img { max-height: 160px; max-width: 100%; border-radius: 8px; border: 1px solid var(--border); cursor: zoom-in; }
+.msg.assistant .images img { max-height: 512px; }
+.msg .images img.expanded { max-height: none; cursor: zoom-out; }
+.msg .images figcaption { font-size: 12px; color: var(--muted); }
+.msg .images figcaption a { color: inherit; }
 .composer .attachment .remove { min-height: 24px; width: 24px; height: 24px; padding: 0; border-color: transparent; color: var(--muted); flex: none; }
 
 .typing { color: var(--muted); animation: blink 1s infinite; }
@@ -423,6 +428,10 @@ button.stop:hover:not(:disabled) { background: var(--danger); filter: brightness
 .composer button { min-height: 44px; }
 .composer.drop-target { outline: 2px dashed var(--accent); outline-offset: -4px; background: var(--user-bg); }
 .composer .attach { width: 44px; padding: 0; flex: none; color: var(--muted); background: transparent; border-color: var(--border); }
+.composer .image-mode { width: 44px; padding: 0; flex: none; color: var(--muted); background: transparent; border-color: var(--border); }
+.composer .image-mode[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: var(--user-bg); }
+.composer .image-format { flex: none; min-height: 44px; }
+.composer.image-mode-on :is(.attach, .web-search) { display: none; }
 .composer .web-search { width: 44px; padding: 0; flex: none; color: var(--muted); background: transparent; border-color: var(--border); }
 .composer .web-search[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: var(--user-bg); }
 
