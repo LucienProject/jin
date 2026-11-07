@@ -23,6 +23,9 @@ const fileInput = document.getElementById('file-input');
 const pendingList = document.getElementById('pending-attachments');
 const imageModeButton = document.getElementById('image-mode');
 const imageFormatSelect = document.getElementById('image-format');
+const micButton = document.getElementById('mic');
+const micStatus = document.getElementById('mic-status');
+const micLanguageButton = document.getElementById('mic-language');
 
 // historique envoyé à chaque requête : l'API ne garde aucune mémoire
 let history = [];
@@ -555,6 +558,118 @@ form.addEventListener('submit', (event) => {
     autosize();
     send(question, attachments, images);
 });
+
+// Dictée : le micro est enregistré dans le navigateur puis transcrit par Whisper (service speech, sur ce serveur)
+const MAX_RECORDING_SECONDS = 300;
+const DICTATION_LANGUAGES = { fr: 'français', en: 'anglais' };
+let recorder = null;
+let recordingTimer = null;
+let dictationLanguage = 'fr';
+try { if (localStorage.getItem('jin.dictationLanguage') in DICTATION_LANGUAGES) dictationLanguage = localStorage.getItem('jin.dictationLanguage'); } catch {}
+
+function renderDictationLanguage() {
+    micLanguageButton.textContent = dictationLanguage.toUpperCase();
+    micLanguageButton.setAttribute('aria-label', `Langue de la dictée : ${DICTATION_LANGUAGES[dictationLanguage]}`);
+    micLanguageButton.title = `Dictée en ${DICTATION_LANGUAGES[dictationLanguage]} (cliquer pour changer)`;
+}
+
+function micMessage(text, isError = false) {
+    micStatus.textContent = text;
+    micStatus.classList.toggle('error', isError);
+    micStatus.hidden = !text;
+}
+
+function insertDictation(text) {
+    const before = prompt.value.slice(0, prompt.selectionStart);
+    const after = prompt.value.slice(prompt.selectionEnd);
+    const glue = (left, right) => (left && right && !/\s$/.test(left) && !/^\s/.test(right) ? ' ' : '');
+    const inserted = glue(before, text) + text + glue(text, after);
+    prompt.value = before + inserted + after;
+    const caret = before.length + inserted.length;
+    prompt.setSelectionRange(caret, caret);
+    autosize();
+    prompt.focus();
+}
+
+async function startRecording() {
+    let stream;
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    } catch (e) {
+        micMessage(e.name === 'NotAllowedError' ? 'Accès au micro refusé : autorise-le dans le navigateur.' : `Micro indisponible (${e.message}).`, true);
+        return;
+    }
+    const type = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4'].find((t) => MediaRecorder.isTypeSupported(t));
+    recorder = new MediaRecorder(stream, type ? { mimeType: type } : {});
+    const chunks = [];
+    recorder.addEventListener('dataavailable', (event) => { if (event.data.size) chunks.push(event.data); });
+    recorder.addEventListener('stop', () => {
+        stream.getTracks().forEach((track) => track.stop());
+        clearInterval(recordingTimer);
+        const blob = new Blob(chunks, { type: recorder.mimeType || type || 'audio/webm' });
+        recorder = null;
+        micButton.setAttribute('aria-pressed', 'false');
+        micButton.setAttribute('aria-label', 'Dicter');
+        transcribe(blob);
+    });
+    recorder.start();
+    micButton.setAttribute('aria-pressed', 'true');
+    micButton.setAttribute('aria-label', 'Terminer la dictée');
+    const started = Date.now();
+    const tick = () => {
+        const seconds = Math.floor((Date.now() - started) / 1000);
+        micMessage(`🔴 Enregistrement… ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')} — re-clique sur le micro pour terminer`);
+        if (seconds >= MAX_RECORDING_SECONDS) recorder?.stop();
+    };
+    tick();
+    recordingTimer = setInterval(tick, 500);
+}
+
+async function transcribe(blob) {
+    if (blob.size < 1000) {
+        micMessage('Enregistrement trop court.', true);
+        return;
+    }
+    micButton.classList.add('busy');
+    micButton.disabled = true;
+    micMessage('Transcription…');
+    const extension = blob.type.includes('mp4') ? 'm4a' : blob.type.includes('ogg') ? 'ogg' : 'webm';
+    const data = new FormData();
+    data.append('audio', blob, `dictee.${extension}`);
+    data.append('language', dictationLanguage);
+    try {
+        const response = await fetch(form.dataset.transcribeUrl, { method: 'POST', body: data, headers: { Accept: 'application/json' } });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body.detail || `HTTP ${response.status}`);
+        if (body.text) {
+            insertDictation(body.text);
+            micMessage('');
+        } else {
+            micMessage('Rien entendu.', true);
+        }
+    } catch (e) {
+        micMessage(`Transcription impossible : ${e.message}`, true);
+    } finally {
+        micButton.classList.remove('busy');
+        micButton.disabled = false;
+    }
+}
+
+// le micro n'est accessible qu'en HTTPS (ou sur localhost)
+if (navigator.mediaDevices?.getUserMedia && window.MediaRecorder) {
+    micButton.hidden = false;
+    micLanguageButton.hidden = false;
+    renderDictationLanguage();
+    micLanguageButton.addEventListener('click', () => {
+        dictationLanguage = dictationLanguage === 'fr' ? 'en' : 'fr';
+        try { localStorage.setItem('jin.dictationLanguage', dictationLanguage); } catch {}
+        renderDictationLanguage();
+    });
+    micButton.addEventListener('click', () => {
+        if (recorder) recorder.stop();
+        else startRecording();
+    });
+}
 
 // sur écran tactile, Entrée va à la ligne : on envoie avec le bouton
 const touchScreen = window.matchMedia('(pointer: coarse)').matches;

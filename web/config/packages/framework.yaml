@@ -27,6 +27,9 @@ framework:
                 base_uri: '%env(IMAGEGEN_URL)%'
                 # déchargement d'Ollama + génération ; plus long au premier passage
                 timeout: 300
+            speech.client:
+                base_uri: '%env(SPEECH_URL)%'
+                timeout: 120
 
 when@test:
     framework:

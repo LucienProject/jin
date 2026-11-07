@@ -38,6 +38,7 @@ services:
       JIN_UI_PASSWORD_HASH: ${JIN_UI_PASSWORD_HASH:?lancer ./set-password.sh}
       SEARXNG_URL: http://127.0.0.1:8888
       IMAGEGEN_URL: http://127.0.0.1:8890
+      SPEECH_URL: http://127.0.0.1:8891
       PHP_CLI_SERVER_WORKERS: 4
     command: >-
       sh -c "php bin/console cache:clear
@@ -83,6 +84,19 @@ services:
               capabilities: [gpu]
     profiles: ["images"]
 
+  # Transcription de la voix (Whisper large-v3-turbo) pour le bouton 🎤 du chat, sur http://127.0.0.1:8891
+  # Sur CPU : les GPU sont pris par Ollama. Premier démarrage : téléchargement du modèle (≈ 1,6 Go).
+  speech:
+    build: ./speech
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      HF_HOME: /cache
+      # le téléchargeur Xet de Hugging Face cale ici ; le HTTP classique fonctionne
+      HF_HUB_DISABLE_XET: 1
+    volumes:
+      - speech-cache:/cache
+
   # Expose l'interface web sur le domaine ngrok fixe (NGROK_DOMAIN dans .env)
   ngrok:
     image: ngrok/ngrok:latest
@@ -97,3 +111,4 @@ services:
 
 volumes:
   imagegen-cache:
+  speech-cache:
