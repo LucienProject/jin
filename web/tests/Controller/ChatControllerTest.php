@@ -10,6 +10,8 @@ use Symfony\Component\HttpClient\Response\MockResponse;
 
 final class ChatControllerTest extends WebTestCase
 {
+    private const string IMAGE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC';
+
     public function testIndexListsChatModelsOnly(): void
     {
         $client = $this->createClientWithApi(new JsonMockResponse(['data' => [
@@ -175,6 +177,70 @@ final class ChatControllerTest extends WebTestCase
             ['role' => 'assistant', 'content' => 'Fait.'],
             ['role' => 'user', 'content' => "<document name=\"c.md\">\nTexte C\n</document>"],
         ], $sent['messages']);
+    }
+
+    public function testIndexMarksModelsThatSeeImages(): void
+    {
+        $client = $this->createClientWithApi(static fn (string $method, string $url, array $options): JsonMockResponse => str_ends_with($url, '/v1/models')
+            ? new JsonMockResponse(['data' => [['id' => 'gemma4:12b'], ['id' => 'phi4:latest']]])
+            : new JsonMockResponse(['capabilities' => 'gemma4:12b' === json_decode($options['body'], true)['model'] ? ['completion', 'vision'] : ['completion']]));
+
+        $client->request('GET', '/');
+
+        self::assertSelectorExists('#model option[value="gemma4:12b"][data-vision]');
+        self::assertSelectorNotExists('#model option[value="phi4:latest"][data-vision]');
+    }
+
+    public function testImagesAreSentAsMultimodalContent(): void
+    {
+        $sent = null;
+        $client = $this->createClientWithApi(function (string $method, string $url, array $options) use (&$sent): MockResponse {
+            $sent = json_decode($options['body'], true);
+
+            return new MockResponse($this->sse(['content' => 'Rouge'])."data: [DONE]\n\n", ['response_headers' => ['content-type' => 'text/event-stream']]);
+        });
+
+        $this->postChat($client, ['model' => 'gemma4:12b', 'messages' => [
+            ['role' => 'user', 'content' => 'Couleur ?', 'images' => [['name' => 'a.png', 'url' => self::IMAGE]]],
+            ['role' => 'assistant', 'content' => 'Rouge.'],
+            ['role' => 'user', 'content' => '', 'images' => [['name' => 'b.jpg', 'url' => 'data:image/jpeg;base64,AAAA']]],
+        ]]);
+
+        self::assertResponseIsSuccessful();
+        self::assertSame([
+            ['role' => 'user', 'content' => [['type' => 'text', 'text' => 'Couleur ?'], ['type' => 'image_url', 'image_url' => ['url' => self::IMAGE]]]],
+            ['role' => 'assistant', 'content' => 'Rouge.'],
+            ['role' => 'user', 'content' => [['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,AAAA']]]],
+        ], $sent['messages']);
+    }
+
+    public function testModelWithoutVisionAnswersWithoutImages(): void
+    {
+        $sent = [];
+        $client = $this->createClientWithApi(function (string $method, string $url, array $options) use (&$sent): MockResponse {
+            $sent[] = json_decode($options['body'], true);
+            if (1 === \count($sent)) {
+                return new JsonMockResponse(['error' => ['message' => '{"error":{"code":400,"message":"Multimodal data provided, but model does not support multimodal requests."}}']], ['http_code' => 400]);
+            }
+
+            return new MockResponse($this->sse(['content' => 'Je ne vois pas l\'image.'])."data: [DONE]\n\n", ['response_headers' => ['content-type' => 'text/event-stream']]);
+        });
+
+        $this->postChat($client, ['model' => 'phi4:latest', 'messages' => [['role' => 'user', 'content' => 'Couleur ?', 'images' => [['name' => 'a.png', 'url' => self::IMAGE]]]]]);
+
+        $parts = $this->ndjson($client);
+        self::assertSame(['type' => 'notice', 'text' => 'Ce modèle ne sait pas lire les images : elles sont ignorées.'], $parts[0]);
+        self::assertSame('content', $parts[1]['type']);
+        self::assertSame([['role' => 'user', 'content' => "Couleur ?\n\n[image « a.png » jointe, que tu ne peux pas voir]"]], $sent[1]['messages']);
+    }
+
+    public function testInvalidImageIsRejected(): void
+    {
+        $client = $this->createClientWithApi();
+
+        $this->postChat($client, ['model' => 'gemma4:12b', 'messages' => [['role' => 'user', 'content' => 'Hop', 'images' => [['name' => 'x.svg', 'url' => 'data:image/svg+xml;base64,PHN2Zz4=']]]]]);
+
+        self::assertResponseStatusCodeSame(422);
     }
 
     public function testEmptyMessageWithoutAttachmentIsRejected(): void

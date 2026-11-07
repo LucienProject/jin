@@ -51,7 +51,7 @@
                 <span>Modèle</span>
                 <select id="model" {{ models is empty ? 'disabled' }}>
                     {% for model in models %}
-                        <option value="{{ model }}" {{ model == default_model ? 'selected' }}>{{ model }}</option>
+                        <option value="{{ model }}" {{ model == default_model ? 'selected' }} {{ model in vision_models ? 'data-vision' }}>{{ model }}</option>
                     {% endfor %}
                 </select>
             </label>
@@ -79,8 +79,8 @@
         <form id="composer" class="composer" data-attach-url="{{ path('attachment_read') }}">
             <ul id="pending-attachments" class="attachments pending" aria-label="Fichiers joints" hidden></ul>
             <input type="file" id="file-input" multiple hidden
-                   accept=".pdf,.docx,.odt,.txt,.md,.markdown,.csv,.tsv,.json,.xml,.yaml,.yml,.html,.htm,.log,.ini,.toml,.sql,.php,.js,.ts,.py,.java,.c,.cpp,.h,.cs,.go,.rs,.rb,.sh,.css,.twig,text/*">
-            <button type="button" id="attach" class="ghost icon attach" title="Joindre des fichiers (PDF, Word, texte, code…) — ou glisse-les ici" aria-label="Joindre des fichiers" {{ models is empty ? 'disabled' }}>
+                   accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,image/avif,.pdf,.docx,.odt,.txt,.md,.markdown,.csv,.tsv,.json,.xml,.yaml,.yml,.html,.htm,.log,.ini,.toml,.sql,.php,.js,.ts,.py,.java,.c,.cpp,.h,.cs,.go,.rs,.rb,.sh,.css,.twig,text/*">
+            <button type="button" id="attach" class="ghost icon attach" title="Joindre des fichiers (images, PDF, Word, texte, code…) — ou glisse-les ici" aria-label="Joindre des fichiers" {{ models is empty ? 'disabled' }}>
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
             </button>
             <button type="button" id="web-search" class="ghost icon web-search" aria-pressed="false" aria-label="Recherche web" {{ models is empty ? 'disabled' }}>

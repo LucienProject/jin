@@ -39,6 +39,7 @@ final class ChatController extends AbstractController
 
         return $this->render('chat/index.html.twig', [
             'models' => $models,
+            'vision_models' => $this->api->visionModels($models),
             'default_model' => \in_array($this->defaultModel, $models, true) ? $this->defaultModel : null,
             'conversations' => $conversations,
             'folders' => $folders,

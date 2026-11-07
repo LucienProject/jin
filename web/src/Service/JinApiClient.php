@@ -5,6 +5,7 @@ namespace App\Service;
 use App\Dto\ChatMessage;
 use Symfony\Component\HttpClient\Chunk\ServerSentEvent;
 use Symfony\Component\HttpClient\EventSourceHttpClient;
+use Symfony\Contracts\HttpClient\Exception\ExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /**
@@ -28,6 +29,33 @@ final readonly class JinApiClient
         sort($ids);
 
         return $ids;
+    }
+
+    /**
+     * Modèles qui savent lire les images, d'après Ollama (requêtes en parallèle).
+     *
+     * @param list<string> $models
+     *
+     * @return list<string>
+     */
+    public function visionModels(array $models): array
+    {
+        $vision = [];
+        try {
+            $responses = [];
+            foreach ($models as $model) {
+                $responses[$model] = $this->jinClient->request('POST', '/api/show', ['json' => ['model' => $model], 'timeout' => 10]);
+            }
+            foreach ($responses as $model => $response) {
+                if (\in_array('vision', $response->toArray(false)['capabilities'] ?? [], true)) {
+                    $vision[] = $model;
+                }
+            }
+        } catch (ExceptionInterface) {
+            // simple indication pour l'interface : on s'en passe
+        }
+
+        return $vision;
     }
 
     /**

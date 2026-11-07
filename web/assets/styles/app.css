@@ -387,6 +387,10 @@ button.stop:hover:not(:disabled) { background: var(--danger); filter: brightness
 .attachment.failed { border-color: var(--danger); background: var(--danger-bg); }
 .attachment.failed .info { color: var(--danger); white-space: normal; flex: 1 1 auto; }
 .attachment.truncated .info { color: var(--danger); }
+.attachment .thumbnail { flex: none; width: 24px; height: 24px; object-fit: cover; border-radius: 4px; }
+.msg.user .images { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-bottom: 6px; }
+.msg.user .images img { max-height: 160px; max-width: 100%; border-radius: 8px; border: 1px solid var(--border); cursor: zoom-in; }
+.msg.user .images img.expanded { max-height: none; cursor: zoom-out; }
 .composer .attachment .remove { min-height: 24px; width: 24px; height: 24px; padding: 0; border-color: transparent; color: var(--muted); flex: none; }
 
 .typing { color: var(--muted); animation: blink 1s infinite; }

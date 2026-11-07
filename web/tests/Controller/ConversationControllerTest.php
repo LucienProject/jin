@@ -23,13 +23,14 @@ final class ConversationControllerTest extends WebTestCase
     public function testAttachmentsAreSavedWithTheConversation(): void
     {
         $attachment = ['name' => 'notes.md', 'content' => '# Notes', 'truncated' => false];
+        $image = ['name' => 'photo.jpg', 'url' => 'data:image/jpeg;base64,AAAA'];
         $created = $this->json('POST', '/conversations', ['title' => 'notes.md', 'model' => 'gemma4:12b', 'messages' => [
-            ['role' => 'user', 'content' => '', 'attachments' => [$attachment]],
+            ['role' => 'user', 'content' => '', 'attachments' => [$attachment], 'images' => [$image]],
             ['role' => 'assistant', 'content' => 'Lu.'],
         ]]);
 
         self::assertSame([
-            ['role' => 'user', 'content' => '', 'attachments' => [$attachment]],
+            ['role' => 'user', 'content' => '', 'attachments' => [$attachment], 'images' => [$image]],
             ['role' => 'assistant', 'content' => 'Lu.'],
         ], $this->json('GET', '/conversations/'.$created['id'])['messages']);
     }

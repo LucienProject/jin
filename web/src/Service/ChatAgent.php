@@ -30,10 +30,12 @@ final readonly class ChatAgent
      */
     public function run(string $model, array $messages, bool $webSearch): \Generator
     {
-        $messages = array_map(static fn (ChatMessage $m): array => $m->toApi(), $messages);
-        if ($webSearch) {
-            array_unshift($messages, ['role' => 'system', 'content' => $this->systemPrompt()]);
-        }
+        $conversation = $messages;
+        $build = fn (bool $images, bool $webSearch): array => [
+            ...($webSearch ? [['role' => 'system', 'content' => $this->systemPrompt()]] : []),
+            ...array_map(static fn (ChatMessage $m): array => $m->toApi($images), $conversation),
+        ];
+        $messages = $build(true, $webSearch);
 
         // tour final : plus d'outils, le modèle doit rédiger sa réponse
         $final = false;
@@ -58,6 +60,13 @@ final readonly class ChatAgent
                     yield ['type' => 'notice', 'text' => "Ce modèle ne sait pas utiliser d'outils : réponse sans recherche web."];
                     $webSearch = false;
                     array_shift($messages);
+                    --$round;
+                    continue;
+                }
+                // modèle sans vision (phi4…) : il lit la conversation sans les images
+                if (0 === $round && str_contains($e->getMessage(), 'does not support multimodal')) {
+                    yield ['type' => 'notice', 'text' => 'Ce modèle ne sait pas lire les images : elles sont ignorées.'];
+                    $messages = $build(false, $webSearch);
                     --$round;
                     continue;
                 }

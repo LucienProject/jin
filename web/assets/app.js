@@ -41,6 +41,7 @@ try {
 
 modelSelect.addEventListener('change', () => {
     try { localStorage.setItem('jin.model', modelSelect.value); } catch {}
+    renderPending();
 });
 
 const renderMarkdown = (text) => DOMPurify.sanitize(marked.parse(text));
@@ -62,21 +63,34 @@ webSearchButton.addEventListener('click', () => {
 refreshWebSearch();
 
 // Fichiers joints : le serveur en extrait le texte dès qu'ils sont choisis,
-// puis ce texte part avec le message (et est enregistré avec la conversation)
+// puis ce texte part avec le message (et est enregistré avec la conversation).
+// Les images sont réduites dans le navigateur et envoyées telles quelles aux modèles qui savent les lire.
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
+const MAX_IMAGE_SIDE = 1536;
+const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/bmp', 'image/avif'];
+const isImage = (file) => IMAGE_TYPES.includes(file.type);
+const modelSeesImages = () => modelSelect.selectedOptions[0]?.hasAttribute('data-vision') ?? false;
 const FILE_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
-// {name, status: loading|ready|failed, data?: {name, content, truncated}, error?}
+// {name, kind: file|image, status: loading|ready|failed, data?: {name, content, truncated} | {name, url}, error?}
 let pending = [];
 
 const formatSize = (chars) => (chars < 1000 ? `${chars} car.` : `${Math.round(chars / 1000)} k car.`);
 
-/** Étiquette d'un fichier joint ; `info` précise sa taille ou son état. */
-function attachmentChip(name, info, className = '') {
+/** Étiquette d'un fichier joint ; `info` précise sa taille ou son état ; `thumbnail` : aperçu d'une image. */
+function attachmentChip(name, info, className = '', thumbnail = null) {
     const chip = document.createElement('li');
     chip.className = `attachment ${className}`;
     chip.title = name;
-    chip.innerHTML = FILE_ICON;
+    if (thumbnail) {
+        const img = document.createElement('img');
+        img.className = 'thumbnail';
+        img.src = thumbnail;
+        img.alt = '';
+        chip.append(img);
+    } else {
+        chip.innerHTML = FILE_ICON;
+    }
     const label = document.createElement('span');
     label.className = 'name';
     label.textContent = name;
@@ -90,11 +104,18 @@ function attachmentChip(name, info, className = '') {
 const describe = (attachment) => (attachment.truncated ? `tronqué à ${formatSize(attachment.content.length)}` : formatSize(attachment.content.length));
 
 function renderPending() {
+    const blind = !modelSeesImages();
     pendingList.replaceChildren(...pending.map((item) => {
-        const chip = item.status === 'ready'
-            ? attachmentChip(item.name, describe(item.data), item.data.truncated ? 'truncated' : '')
-            : attachmentChip(item.name, item.status === 'loading' ? 'lecture…' : item.error, item.status);
-        if (item.status === 'ready' && item.data.truncated) chip.title = `${item.name} : trop long, seul le début sera lu par le modèle`;
+        let chip;
+        if (item.status !== 'ready') {
+            chip = attachmentChip(item.name, item.status === 'loading' ? 'lecture…' : item.error, item.status);
+        } else if (item.kind === 'image') {
+            chip = attachmentChip(item.name, blind ? 'non vue par ce modèle' : 'image', blind ? 'truncated' : '', item.data.url);
+            if (blind) chip.title = `${item.name} : ${modelSelect.value} ne sait pas lire les images, choisis un modèle qui le peut (gemma, qwen3.6, mistral…)`;
+        } else {
+            chip = attachmentChip(item.name, describe(item.data), item.data.truncated ? 'truncated' : '');
+            if (item.data.truncated) chip.title = `${item.name} : trop long, seul le début sera lu par le modèle`;
+        }
         chip.append(iconButton('remove', `Retirer « ${item.name} »`,
             '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>',
             () => {
@@ -112,12 +133,48 @@ function refreshSendButton() {
     sendButton.disabled = !controller && (!modelSelect.value || pending.some((item) => item.status === 'loading'));
 }
 
+/** Image en data URL PNG/JPEG, réduite à MAX_IMAGE_SIDE px de côté. */
+async function imageDataUrl(file) {
+    let bitmap;
+    try {
+        bitmap = await createImageBitmap(file);
+    } catch {
+        throw new Error('image illisible');
+    }
+    const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(bitmap.width, bitmap.height));
+    // déjà petite et dans un format que lisent les modèles : on la garde intacte
+    if (scale === 1 && ['image/png', 'image/jpeg'].includes(file.type) && file.size <= 2 * 1024 * 1024) {
+        bitmap.close();
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(new Error('image illisible'));
+            reader.readAsDataURL(file);
+        });
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    const context = canvas.getContext('2d');
+    // fond blanc : le JPEG n'a pas de transparence
+    context.fillStyle = '#fff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    return canvas.toDataURL('image/jpeg', 0.85);
+}
+
 async function attach(file) {
-    const item = { name: file.name, status: 'loading' };
+    const item = { name: file.name, kind: isImage(file) ? 'image' : 'file', status: 'loading' };
     pending.push(item);
     renderPending();
     try {
         if (file.size > MAX_FILE_BYTES) throw new Error('trop volumineux (20 Mo max.)');
+        if (item.kind === 'image') {
+            item.data = { name: file.name, url: await imageDataUrl(file) };
+            item.status = 'ready';
+            return;
+        }
         const data = new FormData();
         data.append('file', file);
         const response = await fetch(form.dataset.attachUrl, { method: 'POST', body: data, headers: { Accept: 'application/json' } });
@@ -135,8 +192,10 @@ async function attach(file) {
     } catch (e) {
         item.status = 'failed';
         item.error = e.message;
+    } finally {
+        // retiré pendant la lecture : rien à afficher
+        if (pending.includes(item)) renderPending();
     }
-    renderPending();
 }
 
 const attachAll = (files) => [...files].forEach(attach);
@@ -171,9 +230,22 @@ app.addEventListener('drop', (event) => {
     if (!attachButton.disabled) attachAll(event.dataTransfer.files);
 });
 
-/** Contenu d'un message de l'utilisateur : fichiers joints puis texte. */
+/** Contenu d'un message de l'utilisateur : images, fichiers joints puis texte. */
 function fillUserBubble(bubble, message) {
     const body = bubble.querySelector('.body');
+    if (message.images?.length) {
+        const gallery = document.createElement('div');
+        gallery.className = 'images';
+        gallery.append(...message.images.map((image) => {
+            const img = document.createElement('img');
+            img.src = image.url;
+            img.alt = image.name;
+            img.title = `${image.name} (cliquer pour agrandir)`;
+            img.addEventListener('click', () => img.classList.toggle('expanded'));
+            return img;
+        }));
+        bubble.insertBefore(gallery, body);
+    }
     if (message.attachments?.length) {
         const list = document.createElement('ul');
         list.className = 'attachments';
@@ -211,9 +283,14 @@ function setBusy(busy) {
     if (!busy && !touchScreen) prompt.focus();
 }
 
-async function send(question, attachments) {
+async function send(question, attachments, images) {
     const model = modelSelect.value;
-    const message = { role: 'user', content: question, ...(attachments.length ? { attachments } : {}) };
+    const message = {
+        role: 'user',
+        content: question,
+        ...(attachments.length ? { attachments } : {}),
+        ...(images.length ? { images } : {}),
+    };
     history.push(message);
     fillUserBubble(addBubble('user', 'Toi'), message);
 
@@ -365,13 +442,15 @@ form.addEventListener('submit', (event) => {
         return;
     }
     const question = prompt.value.trim();
-    const attachments = pending.filter((item) => item.status === 'ready').map((item) => item.data);
-    if ((!question && !attachments.length) || !modelSelect.value || pending.some((item) => item.status === 'loading')) return;
+    const ready = (kind) => pending.filter((item) => item.status === 'ready' && item.kind === kind).map((item) => item.data);
+    const attachments = ready('file');
+    const images = ready('image');
+    if ((!question && !attachments.length && !images.length) || !modelSelect.value || pending.some((item) => item.status === 'loading')) return;
     prompt.value = '';
     pending = [];
     renderPending();
     autosize();
-    send(question, attachments);
+    send(question, attachments, images);
 });
 
 // sur écran tactile, Entrée va à la ligne : on envoie avec le bouton
@@ -423,7 +502,7 @@ async function api(url, options = {}) {
 
 const payload = () => {
     const message = history.find((m) => m.role === 'user');
-    const first = message?.content.replace(/\s+/g, ' ').trim() || message?.attachments?.[0]?.name || 'Conversation';
+    const first = message?.content.replace(/\s+/g, ' ').trim() || message?.attachments?.[0]?.name || message?.images?.[0]?.name || 'Conversation';
     return JSON.stringify({
         title: first.length > 60 ? `${first.slice(0, 60)}…` : first,
         model: modelSelect.value,
