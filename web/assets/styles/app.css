@@ -252,6 +252,26 @@ button.conversation:hover:not(:disabled) { background: transparent; }
 
 .topbar h1 { font-size: 18px; margin: 0; letter-spacing: .02em; }
 
+/* Logo : avatar + nom en lettres dorées */
+.brand { display: inline-flex; align-items: center; gap: 10px; }
+.brand img {
+    width: 44px; height: 44px;
+    border-radius: 17%;
+    box-shadow: 0 0 0 2px #d9a441, 0 0 12px rgba(255, 170, 60, .45);
+}
+.brand span {
+    font-family: Georgia, "Times New Roman", serif;
+    font-weight: 700;
+    font-size: 26px;
+    letter-spacing: .08em;
+    line-height: 1;
+    background: linear-gradient(180deg, #ffe9a6 0%, #f0b43c 55%, #b8731c 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 1px 0 rgba(90, 40, 10, .55));
+}
+
 .model { display: flex; align-items: center; gap: 8px; margin-left: auto; min-width: 0; color: var(--muted); font-size: 13px; }
 
 .actions { display: flex; align-items: center; gap: 8px; }
@@ -474,6 +494,9 @@ textarea:focus, select:focus, input:focus { outline: 2px solid var(--accent); ou
     box-shadow: var(--shadow);
 }
 .login-card h1 { margin: 0 0 4px; font-size: 22px; text-align: center; }
+.login-card .brand { flex-direction: column; justify-content: center; gap: 12px; }
+.login-card .brand img { width: 120px; height: 120px; }
+.login-card .brand span { font-size: 34px; }
 .login-card label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
 .login-card input {
     color: var(--text);
