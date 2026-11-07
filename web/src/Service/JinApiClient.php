@@ -33,21 +33,21 @@ final readonly class JinApiClient
     /**
      * Envoie la conversation et renvoie la réponse au fil de l'eau.
      *
-     * @param list<ChatMessage> $messages
+     * Avec des outils, le modèle peut demander à en appeler : ces appels sont la valeur de retour
+     * du générateur (getReturn()), vide s'il a répondu directement.
      *
-     * @return \Generator<array{type: 'content'|'reasoning', text: string}>
+     * @param list<array<string, mixed>>      $messages au format OpenAI (role, content, tool_calls, tool_call_id)
+     * @param list<array<string, mixed>>|null $tools    définitions au format OpenAI
+     *
+     * @return \Generator<int, array{type: 'content'|'reasoning', text: string}, mixed, list<array{id: string, name: string, arguments: string}>>
      *
      * @throws JinApiException
      */
-    public function streamChat(string $model, array $messages): \Generator
+    public function streamChat(string $model, array $messages, ?array $tools = null): \Generator
     {
         $client = new EventSourceHttpClient($this->jinClient);
         $response = $client->request('POST', '/v1/chat/completions', [
-            'json' => [
-                'model' => $model,
-                'messages' => array_map(static fn (ChatMessage $m): array => ['role' => $m->role, 'content' => $m->content], $messages),
-                'stream' => true,
-            ],
+            'json' => ['model' => $model, 'messages' => $messages, 'stream' => true] + ($tools ? ['tools' => $tools] : []),
         ]);
 
         if (200 !== $response->getStatusCode()) {
@@ -57,12 +57,13 @@ final readonly class JinApiClient
             throw new JinApiException(\is_string($error) ? $error : json_encode($error));
         }
 
+        $calls = [];
         foreach ($client->stream($response) as $chunk) {
             if (!$chunk instanceof ServerSentEvent) {
                 continue;
             }
             if ('[DONE]' === $chunk->getData()) {
-                return;
+                break;
             }
 
             $delta = json_decode($chunk->getData(), true)['choices'][0]['delta'] ?? [];
@@ -74,6 +75,19 @@ final readonly class JinApiClient
             if ('' !== ($delta['content'] ?? '')) {
                 yield ['type' => 'content', 'text' => $delta['content']];
             }
+            // un appel d'outil peut arriver en plusieurs morceaux : on les recolle par index
+            foreach ($delta['tool_calls'] ?? [] as $position => $call) {
+                $index = $call['index'] ?? $position;
+                $calls[$index] ??= ['id' => '', 'name' => '', 'arguments' => ''];
+                $calls[$index]['id'] .= $call['id'] ?? '';
+                $calls[$index]['name'] .= $call['function']['name'] ?? '';
+                $arguments = $call['function']['arguments'] ?? '';
+                $calls[$index]['arguments'] .= \is_string($arguments) ? $arguments : json_encode($arguments);
+            }
         }
+
+        ksort($calls);
+
+        return array_values($calls);
     }
 }

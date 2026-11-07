@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Dto\ChatRequest;
+use App\Service\ChatAgent;
 use App\Service\ConversationStore;
 use App\Service\JinApiClient;
 use App\Service\JinApiException;
@@ -19,6 +20,7 @@ final class ChatController extends AbstractController
     public function __construct(
         private readonly JinApiClient $api,
         private readonly ConversationStore $conversations,
+        private readonly ChatAgent $agent,
         #[Autowire(env: 'JIN_DEFAULT_MODEL')]
         private readonly string $defaultModel,
     ) {
@@ -45,14 +47,15 @@ final class ChatController extends AbstractController
     }
 
     /**
-     * Répond en NDJSON : une ligne {"type": "content"|"reasoning"|"error", "text": "…"} par morceau reçu.
+     * Répond en NDJSON, une ligne par morceau : {"type": "content"|"reasoning"|"notice"|"error", "text": "…"},
+     * et pour la recherche web {"type": "tool", "name", "label", "url"?} puis {"type": "tool_done", "ok", "summary"}.
      */
     #[Route('/chat', name: 'chat_send', methods: ['POST'], format: 'json')]
     public function send(#[MapRequestPayload] ChatRequest $chat): StreamedResponse
     {
         return new StreamedResponse(function () use ($chat): void {
             try {
-                foreach ($this->api->streamChat($chat->model, $chat->messages) as $part) {
+                foreach ($this->agent->run($chat->model, $chat->messages, $chat->webSearch) as $part) {
                     echo json_encode($part), "\n";
                     flush();
                 }

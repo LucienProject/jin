@@ -1,0 +1,17 @@
+# Moteur de recherche utilisé par l'interface de chat (outil web_search des modèles).
+# Accessible seulement depuis la machine (127.0.0.1:8888). Clé secrète : SEARXNG_SECRET dans .env.
+use_default_settings: true
+
+general:
+  instance_name: Jin
+
+server:
+  limiter: false        # seul client : l'application, pas besoin de limiter le débit
+  image_proxy: false
+  public_instance: false
+
+search:
+  safe_search: 0
+  formats:
+    - html
+    - json              # API utilisée par l'application

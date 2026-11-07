@@ -10,6 +10,7 @@ const form = document.getElementById('composer');
 const prompt = document.getElementById('prompt');
 const sendButton = document.getElementById('send');
 const resetButton = document.getElementById('reset');
+const webSearchButton = document.getElementById('web-search');
 const sidebar = document.getElementById('sidebar');
 const backdrop = document.getElementById('backdrop');
 const openSidebarButton = document.getElementById('open-sidebar');
@@ -17,6 +18,9 @@ const saveButton = document.getElementById('save');
 const listEl = document.getElementById('conversations');
 const noConversationEl = document.getElementById('no-conversation');
 const conversationsUrl = sidebar.dataset.createUrl;
+const attachButton = document.getElementById('attach');
+const fileInput = document.getElementById('file-input');
+const pendingList = document.getElementById('pending-attachments');
 
 // historique envoyé à chaque requête : l'API ne garde aucune mémoire
 let history = [];
@@ -41,6 +45,145 @@ modelSelect.addEventListener('change', () => {
 
 const renderMarkdown = (text) => DOMPurify.sanitize(marked.parse(text));
 
+// Recherche web : le modèle peut chercher et lire des pages (choix mémorisé dans ce navigateur)
+let webSearch = false;
+try { webSearch = localStorage.getItem('jin.webSearch') === '1'; } catch {}
+const refreshWebSearch = () => {
+    webSearchButton.setAttribute('aria-pressed', String(webSearch));
+    webSearchButton.title = webSearch
+        ? 'Recherche web activée : le modèle peut chercher sur internet (cliquer pour désactiver)'
+        : 'Recherche web désactivée (cliquer pour laisser le modèle chercher sur internet)';
+};
+webSearchButton.addEventListener('click', () => {
+    webSearch = !webSearch;
+    try { localStorage.setItem('jin.webSearch', webSearch ? '1' : '0'); } catch {}
+    refreshWebSearch();
+});
+refreshWebSearch();
+
+// Fichiers joints : le serveur en extrait le texte dès qu'ils sont choisis,
+// puis ce texte part avec le message (et est enregistré avec la conversation)
+
+const MAX_FILE_BYTES = 20 * 1024 * 1024;
+const FILE_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
+// {name, status: loading|ready|failed, data?: {name, content, truncated}, error?}
+let pending = [];
+
+const formatSize = (chars) => (chars < 1000 ? `${chars} car.` : `${Math.round(chars / 1000)} k car.`);
+
+/** Étiquette d'un fichier joint ; `info` précise sa taille ou son état. */
+function attachmentChip(name, info, className = '') {
+    const chip = document.createElement('li');
+    chip.className = `attachment ${className}`;
+    chip.title = name;
+    chip.innerHTML = FILE_ICON;
+    const label = document.createElement('span');
+    label.className = 'name';
+    label.textContent = name;
+    const detail = document.createElement('span');
+    detail.className = 'info';
+    detail.textContent = info;
+    chip.append(label, detail);
+    return chip;
+}
+
+const describe = (attachment) => (attachment.truncated ? `tronqué à ${formatSize(attachment.content.length)}` : formatSize(attachment.content.length));
+
+function renderPending() {
+    pendingList.replaceChildren(...pending.map((item) => {
+        const chip = item.status === 'ready'
+            ? attachmentChip(item.name, describe(item.data), item.data.truncated ? 'truncated' : '')
+            : attachmentChip(item.name, item.status === 'loading' ? 'lecture…' : item.error, item.status);
+        if (item.status === 'ready' && item.data.truncated) chip.title = `${item.name} : trop long, seul le début sera lu par le modèle`;
+        chip.append(iconButton('remove', `Retirer « ${item.name} »`,
+            '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+            () => {
+                pending = pending.filter((other) => other !== item);
+                renderPending();
+            }));
+        return chip;
+    }));
+    pendingList.hidden = pending.length === 0;
+    refreshSendButton();
+}
+
+// on attend la fin des lectures avant d'envoyer
+function refreshSendButton() {
+    sendButton.disabled = !controller && (!modelSelect.value || pending.some((item) => item.status === 'loading'));
+}
+
+async function attach(file) {
+    const item = { name: file.name, status: 'loading' };
+    pending.push(item);
+    renderPending();
+    try {
+        if (file.size > MAX_FILE_BYTES) throw new Error('trop volumineux (20 Mo max.)');
+        const data = new FormData();
+        data.append('file', file);
+        const response = await fetch(form.dataset.attachUrl, { method: 'POST', body: data, headers: { Accept: 'application/json' } });
+        // session expirée : le pare-feu redirige vers la page de connexion
+        if (response.redirected) {
+            window.location.reload();
+            return;
+        }
+        if (!response.ok) {
+            const problem = await response.json().catch(() => ({}));
+            throw new Error(problem.detail || (response.status === 413 ? 'trop volumineux' : `erreur HTTP ${response.status}`));
+        }
+        item.data = await response.json();
+        item.status = 'ready';
+    } catch (e) {
+        item.status = 'failed';
+        item.error = e.message;
+    }
+    renderPending();
+}
+
+const attachAll = (files) => [...files].forEach(attach);
+
+attachButton.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => {
+    attachAll(fileInput.files);
+    fileInput.value = '';
+});
+// fichiers collés (copier depuis l'explorateur de fichiers)
+prompt.addEventListener('paste', (event) => {
+    if (event.clipboardData?.files.length) {
+        event.preventDefault();
+        attachAll(event.clipboardData.files);
+    }
+});
+// fichiers glissés n'importe où sur la conversation
+const draggingFiles = (event) => event.dataTransfer?.types.includes('Files');
+app.addEventListener('dragover', (event) => {
+    if (!draggingFiles(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = attachButton.disabled ? 'none' : 'copy';
+    form.classList.add('drop-target');
+});
+app.addEventListener('dragleave', (event) => {
+    if (!app.contains(event.relatedTarget)) form.classList.remove('drop-target');
+});
+app.addEventListener('drop', (event) => {
+    if (!draggingFiles(event)) return;
+    event.preventDefault();
+    form.classList.remove('drop-target');
+    if (!attachButton.disabled) attachAll(event.dataTransfer.files);
+});
+
+/** Contenu d'un message de l'utilisateur : fichiers joints puis texte. */
+function fillUserBubble(bubble, message) {
+    const body = bubble.querySelector('.body');
+    if (message.attachments?.length) {
+        const list = document.createElement('ul');
+        list.className = 'attachments';
+        list.append(...message.attachments.map((a) => attachmentChip(a.name, describe(a), a.truncated ? 'truncated' : '')));
+        bubble.insertBefore(list, body);
+    }
+    body.textContent = message.content;
+    body.hidden = !message.content;
+}
+
 function addBubble(role, label) {
     document.getElementById('empty')?.remove();
     const bubble = document.createElement('article');
@@ -64,13 +207,15 @@ function setBusy(busy) {
     resetButton.disabled = busy;
     listEl.querySelectorAll('button').forEach((button) => { button.disabled = busy; });
     refreshSaveButton();
+    refreshSendButton();
     if (!busy && !touchScreen) prompt.focus();
 }
 
-async function send(question) {
+async function send(question, attachments) {
     const model = modelSelect.value;
-    history.push({ role: 'user', content: question });
-    addBubble('user', 'Toi').querySelector('.body').textContent = question;
+    const message = { role: 'user', content: question, ...(attachments.length ? { attachments } : {}) };
+    history.push(message);
+    fillUserBubble(addBubble('user', 'Toi'), message);
 
     const bubble = addBubble('assistant', model);
     const body = bubble.querySelector('.body');
@@ -79,6 +224,45 @@ async function send(question) {
     let content = '';
     let reasoning = '';
     let frame = null;
+    let toolsBlock = null;
+    let lastStep = null;
+    let steps = 0;
+
+    // étapes de recherche, dans un bloc repliable ouvert pendant la recherche
+    const addStep = (part) => {
+        if (!toolsBlock) {
+            toolsBlock = document.createElement('details');
+            toolsBlock.className = 'tools';
+            toolsBlock.open = true;
+            toolsBlock.innerHTML = '<summary></summary><ol></ol>';
+            bubble.insertBefore(toolsBlock, body);
+        }
+        steps++;
+        toolsBlock.querySelector('summary').textContent = `Recherche web (${steps} étape${steps > 1 ? 's' : ''})`;
+        lastStep = document.createElement('li');
+        lastStep.className = `step ${part.name} running`;
+        const label = document.createElement(part.url ? 'a' : 'span');
+        label.textContent = part.label;
+        if (part.url) {
+            label.href = part.url;
+            label.target = '_blank';
+            label.rel = 'noopener noreferrer';
+        }
+        const status = document.createElement('span');
+        status.className = 'status';
+        status.textContent = '…';
+        lastStep.append(label, status);
+        toolsBlock.querySelector('ol').append(lastStep);
+        // le texte écrit avant la recherche ne doit pas se coller à la suite de la réponse
+        if (content && !content.endsWith('\n\n')) content += '\n\n';
+        if (reasoning && !reasoning.endsWith('\n\n')) reasoning += '\n\n';
+    };
+    const finishStep = (part) => {
+        if (!lastStep) return;
+        lastStep.classList.remove('running');
+        lastStep.classList.toggle('failed', !part.ok);
+        lastStep.querySelector('.status').textContent = part.ok ? ` · ${part.summary}` : ` · échec : ${part.summary}`;
+    };
 
     const render = () => {
         frame = null;
@@ -103,7 +287,7 @@ async function send(question) {
         const response = await fetch(app.dataset.sendUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson' },
-            body: JSON.stringify({ model, messages: history }),
+            body: JSON.stringify({ model, messages: history, webSearch }),
             signal: controller.signal,
         });
         // session expirée : le pare-feu redirige vers la page de connexion
@@ -137,6 +321,15 @@ async function send(question) {
                         reasoningBody = details.querySelector('pre');
                     }
                     reasoning += part.text;
+                } else if (part.type === 'tool') {
+                    addStep(part);
+                } else if (part.type === 'tool_done') {
+                    finishStep(part);
+                } else if (part.type === 'notice') {
+                    const notice = document.createElement('div');
+                    notice.className = 'meta notice-inline';
+                    notice.textContent = part.text;
+                    bubble.insertBefore(notice, body);
                 } else if (part.type === 'error') {
                     showError(part.text);
                 }
@@ -147,6 +340,10 @@ async function send(question) {
         if (e.name !== 'AbortError') showError(e.message);
     } finally {
         if (frame) cancelAnimationFrame(frame);
+        if (toolsBlock) {
+            toolsBlock.open = false;
+            toolsBlock.querySelectorAll('.step.running').forEach((step) => step.classList.remove('running'));
+        }
         render();
         if (!content) body.innerHTML = '<em class="muted">(pas de réponse)</em>';
         // on ne garde que les échanges complets dans l'historique
@@ -168,10 +365,13 @@ form.addEventListener('submit', (event) => {
         return;
     }
     const question = prompt.value.trim();
-    if (!question || !modelSelect.value) return;
+    const attachments = pending.filter((item) => item.status === 'ready').map((item) => item.data);
+    if ((!question && !attachments.length) || !modelSelect.value || pending.some((item) => item.status === 'loading')) return;
     prompt.value = '';
+    pending = [];
+    renderPending();
     autosize();
-    send(question);
+    send(question, attachments);
 });
 
 // sur écran tactile, Entrée va à la ligne : on envoie avec le bouton
@@ -193,6 +393,8 @@ prompt.addEventListener('input', autosize);
 resetButton.addEventListener('click', () => {
     history = [];
     currentId = null;
+    pending = [];
+    renderPending();
     renderList();
     messagesEl.innerHTML = '<div class="notice" id="empty">Nouvelle conversation. Pose ta question.</div>';
     prompt.focus();
@@ -220,7 +422,8 @@ async function api(url, options = {}) {
 }
 
 const payload = () => {
-    const first = history.find((m) => m.role === 'user')?.content.replace(/\s+/g, ' ').trim() ?? 'Conversation';
+    const message = history.find((m) => m.role === 'user');
+    const first = message?.content.replace(/\s+/g, ' ').trim() || message?.attachments?.[0]?.name || 'Conversation';
     return JSON.stringify({
         title: first.length > 60 ? `${first.slice(0, 60)}…` : first,
         model: modelSelect.value,
@@ -610,11 +813,11 @@ async function load(id) {
         }
         messagesEl.replaceChildren();
         for (const message of history) {
-            const body = addBubble(message.role, message.role === 'user' ? 'Toi' : conversation.model).querySelector('.body');
+            const bubble = addBubble(message.role, message.role === 'user' ? 'Toi' : conversation.model);
             if (message.role === 'user') {
-                body.textContent = message.content;
+                fillUserBubble(bubble, message);
             } else {
-                body.innerHTML = renderMarkdown(message.content);
+                bubble.querySelector('.body').innerHTML = renderMarkdown(message.content);
             }
         }
         messagesEl.scrollTop = messagesEl.scrollHeight;

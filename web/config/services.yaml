@@ -21,3 +21,13 @@ services:
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
+
+    # lecture des pages pour l'outil fetch_url : refuse localhost et le réseau local,
+    # y compris après une redirection (une page piégée ne peut pas viser Ollama ou la box)
+    web_fetch.client:
+        class: Symfony\Component\HttpClient\NoPrivateNetworkHttpClient
+        arguments: ['@http_client']
+
+    App\Service\WebPageReader:
+        arguments:
+            $client: '@web_fetch.client'

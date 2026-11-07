@@ -15,6 +15,8 @@ final readonly class ChatRequest
         #[Assert\Count(min: 1)]
         #[Assert\Valid]
         public array $messages,
+        /** laisse le modèle chercher sur le web (outils web_search et fetch_url) */
+        public bool $webSearch = false,
     ) {
     }
 }

@@ -354,6 +354,41 @@ button.stop:hover:not(:disabled) { background: var(--danger); filter: brightness
     overflow-y: auto;
 }
 
+/* étapes de la recherche web */
+.tools { margin-bottom: 6px; font-size: 13px; color: var(--muted); }
+.tools summary { cursor: pointer; }
+.tools ol { margin: 6px 0 0; padding: 6px 12px 6px 28px; border-left: 3px solid var(--border); display: flex; flex-direction: column; gap: 2px; }
+.tools .step { overflow-wrap: anywhere; }
+.tools .step a { color: inherit; }
+.tools .step.running .status { animation: blink 1s infinite; }
+.tools .step.failed .status { color: var(--danger); }
+.notice-inline { font-style: italic; }
+
+/* fichiers joints : en attente dans la zone de saisie, puis dans le message envoyé */
+.attachments { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.attachments.pending { flex-basis: 100%; }
+.msg.user .attachments { justify-content: flex-end; margin-bottom: 6px; }
+.attachment {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    padding: 4px 6px 4px 10px;
+    font-size: 13px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+.msg .attachment { padding-right: 10px; }
+.attachment svg { flex: none; color: var(--muted); }
+.attachment .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.attachment .info { flex: none; color: var(--muted); font-size: 12px; }
+.attachment.loading .info { animation: blink 1s infinite; }
+.attachment.failed { border-color: var(--danger); background: var(--danger-bg); }
+.attachment.failed .info { color: var(--danger); white-space: normal; flex: 1 1 auto; }
+.attachment.truncated .info { color: var(--danger); }
+.composer .attachment .remove { min-height: 24px; width: 24px; height: 24px; padding: 0; border-color: transparent; color: var(--muted); flex: none; }
+
 .typing { color: var(--muted); animation: blink 1s infinite; }
 @keyframes blink { 50% { opacity: .3; } }
 
@@ -380,7 +415,12 @@ button.stop:hover:not(:disabled) { background: var(--danger); filter: brightness
     border-top: 1px solid var(--border);
 }
 
+.composer { flex-wrap: wrap; }
 .composer button { min-height: 44px; }
+.composer.drop-target { outline: 2px dashed var(--accent); outline-offset: -4px; background: var(--user-bg); }
+.composer .attach { width: 44px; padding: 0; flex: none; color: var(--muted); background: transparent; border-color: var(--border); }
+.composer .web-search { width: 44px; padding: 0; flex: none; color: var(--muted); background: transparent; border-color: var(--border); }
+.composer .web-search[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: var(--user-bg); }
 
 textarea {
     flex: 1;

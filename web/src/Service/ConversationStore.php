@@ -67,7 +67,7 @@ final class ConversationStore
             'model' => $model,
             'folder' => $existing['folder'] ?? null,
             'updatedAt' => (new \DateTimeImmutable())->format(\DATE_ATOM),
-            'messages' => array_map(static fn (ChatMessage $m): array => ['role' => $m->role, 'content' => $m->content], $messages),
+            'messages' => array_map(static fn (ChatMessage $m): array => $m->toArray(), $messages),
         ]);
     }
 

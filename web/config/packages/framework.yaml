@@ -20,6 +20,9 @@ framework:
                 auth_bearer: '%env(JIN_API_TOKEN)%'
                 # le premier appel à un modèle peut attendre son chargement en VRAM
                 timeout: 300
+            searxng.client:
+                base_uri: '%env(SEARXNG_URL)%'
+                timeout: 15
 
 when@test:
     framework:

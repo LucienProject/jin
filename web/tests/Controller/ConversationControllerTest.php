@@ -20,6 +20,20 @@ final class ConversationControllerTest extends WebTestCase
         $this->client->loginUser($users->loadUserByIdentifier('lucien'));
     }
 
+    public function testAttachmentsAreSavedWithTheConversation(): void
+    {
+        $attachment = ['name' => 'notes.md', 'content' => '# Notes', 'truncated' => false];
+        $created = $this->json('POST', '/conversations', ['title' => 'notes.md', 'model' => 'gemma4:12b', 'messages' => [
+            ['role' => 'user', 'content' => '', 'attachments' => [$attachment]],
+            ['role' => 'assistant', 'content' => 'Lu.'],
+        ]]);
+
+        self::assertSame([
+            ['role' => 'user', 'content' => '', 'attachments' => [$attachment]],
+            ['role' => 'assistant', 'content' => 'Lu.'],
+        ], $this->json('GET', '/conversations/'.$created['id'])['messages']);
+    }
+
     public function testSaveLoadUpdateAndDelete(): void
     {
         $created = $this->json('POST', '/conversations', $this->conversation('Salut', ['Salut', 'Bonjour !']));
