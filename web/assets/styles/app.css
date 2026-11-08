@@ -445,6 +445,7 @@ button.stop:hover:not(:disabled) { background: var(--danger); filter: brightness
 }
 
 .composer { flex-wrap: wrap; }
+.composer-tools { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .composer button { min-height: 44px; }
 .composer.drop-target { outline: 2px dashed var(--accent); outline-offset: -4px; background: var(--user-bg); }
 .composer .attach { width: 44px; padding: 0; flex: none; color: var(--muted); background: transparent; border-color: var(--border); }
